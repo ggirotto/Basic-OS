@@ -7,21 +7,52 @@
 
 uint16_t fat[4096]; // FAT's table 8 clusters, 4096 inputs of 16 bits (8192 bytes)
 
-int main() {
-    char* init = "init";
-    bool quit = false;
+FILE *fatPartition;
 
-    while (!quit) {
-        char[50] command;
+void loadFileSystem() {
 
-        // TODO: read input command
+    // Load the fat partition
+    fatPartition = fopen("fat.part", "rw");
 
-        if (starts_with(init, &command)) {
-            // TODO: implement init function
-        }
+}
 
-        // TODO: implement other commands
+
+void initializateFileSystem() {
+
+    // Create the fat partition file
+    fatPartition = fopen("fat.part", "a");
+
+}
+
+/*
+   Deal with the user input and decide which file system fuctio to call
+*/
+void handleUserInput(char userInput[100]) {
+
+    if (strcmp(userInput, "init") == 0) {
+
+        initializateFileSystem();
+
+    } else if (strcmp(userInput, "load") == 0) {
+
+        loadFileSystem();
+
+    } else {
+        
+        printf("Invalid Command");
+
     }
+
+}
+
+int main() {
+
+    printf("File System\n");
+    
+    char userInput[100];
+    scanf("%s", userInput);
+    handleUserInput(userInput);
+
 
     return 0;
 }

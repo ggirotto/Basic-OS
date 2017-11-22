@@ -76,6 +76,67 @@ void initializateFileSystem() {
     printf("INICIALIZOU DATACLUSTERS\n");
 
 }
+
+void listDirectories() {
+
+    // Back to root
+    fseek( fatPartition, 9*CLUSTER_SIZE, SEEK_SET );
+    fread( root, CLUSTER_SIZE, 1, fatPartition );
+
+    char directoryPath[100];
+    scanf("%s", directoryPath);
+
+    char *delimiter = "/";
+    char *curr = strtok(directoryPath, delimiter);
+
+    while(curr != NULL) {
+
+        // Walk through paths
+
+        bool foundDirectory = false;
+
+        for (int i = 0; i < 32; ++i)
+        {
+            dir_entry_t file = root[i];
+
+            if (file.attributes == 0 && strcmp(file.filename, curr) == 0)
+            {
+                fseek( fatPartition, file.first_block, SEEK_SET );
+                fread( root, CLUSTER_SIZE, 1, fatPartition );
+                foundDirectory = true;
+                break;
+            }
+
+        }
+
+        if (!foundDirectory)
+        {
+            printf("DIRECTORY NOT FOUND \n");
+            return;
+        }
+
+        curr = strtok(NULL, delimiter);
+
+    }
+
+    for (int i = 0; i < 32; ++i)
+    {
+        dir_entry_t *file = &root[i];
+
+        if (file->attributes != 0 || strcmp(file->filename, "") != 0)
+        {
+            if (file->attributes == 0)
+            {
+                printf("[FOLDER] %s\n", file->filename);
+            } else {
+                printf("[FILE] %s\n", file->filename);
+            }
+            
+        }
+
+    }
+
+}
 /*
    Deal with the user input and decide which file system fuctio to call
 */

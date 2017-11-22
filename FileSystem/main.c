@@ -12,6 +12,17 @@ dir_entry_t root[32];
 
 FILE *fatPartition;
 
+void loadFileSystem() {
+
+    // Load the fat partition
+    fatPartition = fopen("fat.part", "r+");
+    fseek( fatPartition, CLUSTER_SIZE, SEEK_SET );
+    fread( fat, CLUSTER_SIZE, 8, fatPartition );
+
+    fseek( fatPartition, 5120, SEEK_SET );
+    fread( root, CLUSTER_SIZE, 1, fatPartition );
+
+}
 
 /*
    Deal with the user input and decide which file system fuctio to call

@@ -5,7 +5,13 @@
 #include "cluster/data_cluster.h"
 #include "utils.h"
 
+#define CLUSTER_SIZE 1024
+
 uint16_t fat[4096]; // FAT's table 8 clusters, 4096 inputs of 16 bits (8192 bytes)
+dir_entry_t root[32];
+
+FILE *fatPartition;
+
 
 /*
    Deal with the user input and decide which file system fuctio to call

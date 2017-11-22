@@ -37,6 +37,22 @@ void handleUserInput(char userInput[100]) {
 
         loadFileSystem();
 
+    } else if (strcmp(userInput, "mkdir") == 0) {
+        
+        makeDirectory();
+
+    } else if (strcmp(userInput, "write") == 0) {
+        
+        writeFile();
+
+    } else if (strcmp(userInput, "create") == 0) {
+        
+        makeFile();
+
+    } else if (strcmp(userInput, "ls") == 0) {
+        
+        listDirectories();
+
     } else {
         
         printf("Invalid Command");
@@ -47,11 +63,16 @@ void handleUserInput(char userInput[100]) {
 
 int main() {
 
+    system("clear");
     printf("File System\n");
-    
     char userInput[100];
-    scanf("%s", userInput);
-    handleUserInput(userInput);
+
+    while(strcmp(userInput, "quit") != 0) {
+
+        scanf("%s", userInput);
+        handleUserInput(userInput);
+
+    }
 
 
     return 0;

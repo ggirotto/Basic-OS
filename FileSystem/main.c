@@ -137,6 +137,108 @@ void listDirectories() {
     }
 
 }
+
+void makeDirectory() {
+
+
+    // Back to root
+    fseek( fatPartition, 9*CLUSTER_SIZE, SEEK_SET );
+    fread( root, CLUSTER_SIZE, 1, fatPartition );
+
+    // Read the path inputed by the user
+    char directoryPath[100];
+    scanf("%s", directoryPath);
+
+    char *prev;
+    char *curr;
+    char *delimiter = "/";
+    uint16_t address = 9 * CLUSTER_SIZE;
+
+    prev = strtok(directoryPath, delimiter);
+
+
+    while((curr = strtok(NULL, delimiter)) != NULL) {
+
+        // Walk through paths
+
+        bool foundDirectory = false;
+
+        for (int i = 0; i < 32; ++i)
+        {
+            dir_entry_t file = root[i];
+
+            if (file.attributes == 0 && strcmp(file.filename, prev) == 0)
+            {
+                address = file.first_block;
+                fseek( fatPartition, file.first_block, SEEK_SET );
+                fread( root, CLUSTER_SIZE, 1, fatPartition );
+                foundDirectory = true;
+            }
+
+        }
+
+        if (!foundDirectory)
+        {
+            printf("DIRECTORY NOT FOUND \n");
+            return;
+        }
+
+        prev = curr;
+
+    }
+
+    dir_entry_t *foundEmptyDirectory = NULL;
+
+    for (int i = 0; i < 32; ++i)
+    {
+        dir_entry_t *file = &root[i];
+
+        if (file->attributes == 0 && strcmp(file->filename, "") == 0)
+        {
+            foundEmptyDirectory = file;
+            break;
+        }
+
+    }
+
+    if (foundEmptyDirectory == NULL)
+    {
+
+        printf("Não tem posição livre no diretório desejado\n");
+        return;
+
+    } else
+    {
+
+        strcpy(foundEmptyDirectory->filename,prev);
+
+    }
+
+    for (int i = 0; i < 4096; ++i)
+    {
+        uint16_t *address = fat[i];
+
+        if (address == 0x0000)
+        {
+            
+            uint16_t directoryAddress = i * CLUSTER_SIZE;
+            printf("Criando essa merda em %d\n", directoryAddress);
+
+            foundEmptyDirectory->first_block = directoryAddress;
+            fat[i] = directoryAddress;
+            break;
+
+        }
+
+    }
+
+    fseek(fatPartition, CLUSTER_SIZE, SEEK_SET);
+    fwrite(fat, 2, 4096, fatPartition);
+
+    fseek(fatPartition, address, SEEK_SET);
+    fwrite(root, CLUSTER_SIZE, 1, fatPartition);
+
+}
 /*
    Deal with the user input and decide which file system fuctio to call
 */

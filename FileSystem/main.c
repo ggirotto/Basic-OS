@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include "dir/dir_entry.h"
 #include "cluster/data_cluster.h"
 #include "utils.h"

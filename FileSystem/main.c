@@ -7,23 +7,6 @@
 
 uint16_t fat[4096]; // FAT's table 8 clusters, 4096 inputs of 16 bits (8192 bytes)
 
-FILE *fatPartition;
-
-void loadFileSystem() {
-
-    // Load the fat partition
-    fatPartition = fopen("fat.part", "rw");
-
-}
-
-
-void initializateFileSystem() {
-
-    // Create the fat partition file
-    fatPartition = fopen("fat.part", "a");
-
-}
-
 /*
    Deal with the user input and decide which file system fuctio to call
 */

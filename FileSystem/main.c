@@ -342,6 +342,102 @@ void makeFile() {
     fwrite(root, CLUSTER_SIZE, 1, fatPartition);
 
 }
+
+
+void writeFile() {
+
+
+    // Back to root
+    fseek( fatPartition, 9*CLUSTER_SIZE, SEEK_SET );
+    fread( root, CLUSTER_SIZE, 1, fatPartition );
+
+    // Insert user input at directoryPath
+    char directoryPath[256];
+    fgets (directoryPath, 256, stdin);
+
+    // Create a copy from 'directoryPath' to 'directoryPathContent' to manipulate string content without modify original content
+    char directoryPathContent[256];
+    snprintf(directoryPathContent, 256, "%s", directoryPath);
+
+    // Get content between "", which the user want to write
+    char *delimiter = "\"";
+    char *contentToWrite = strtok(directoryPathContent, delimiter);
+    contentToWrite = strtok(NULL, delimiter);
+
+    // Remove content between "" from the string.
+    char *a = strstr(directoryPath, " ");
+    char *b = strrchr(directoryPath, '\"');
+    memmove(a-1, b+1, strlen(b)+1);
+
+    char *prev;
+    char *curr;
+    delimiter = "/";
+    uint16_t address = 9 * CLUSTER_SIZE;
+
+    prev = strtok(directoryPath, delimiter);
+
+    while((curr = strtok(NULL, delimiter)) != NULL) {
+
+        // Walk through paths
+
+        bool foundDirectory = false;
+
+        for (int i = 0; i < 32; ++i)
+        {
+            dir_entry_t file = root[i];
+
+            if (file.attributes == 0 && strcmp((char *)file.filename, prev) == 0)
+            {
+                address = file.first_block;
+                fseek( fatPartition, file.first_block, SEEK_SET );
+                fread( root, CLUSTER_SIZE, 1, fatPartition );
+                foundDirectory = true;
+            }
+
+        }
+
+        if (!foundDirectory)
+        {
+            printf("DIRECTORY NOT FOUND \n");
+            return;
+        }
+
+        prev = curr;
+
+    }
+
+    prev[strlen(prev)-1] = 0;
+
+    dir_entry_t *foundFileToWrite = NULL;
+
+    for (int i = 0; i < 32; ++i)
+    {
+        dir_entry_t *file = &root[i];
+        if (file->attributes == 1 && strcmp((char *)file->filename, prev) == 0)
+        {
+            
+            foundFileToWrite = file;
+            break;
+        }
+
+    }
+
+    if (foundFileToWrite == NULL)
+    {
+
+        printf("Arquivo para escrita não existe\n");
+        return;
+
+    } else
+    {
+
+        fseek(fatPartition, foundFileToWrite->first_block, SEEK_SET);
+        fwrite(contentToWrite, sizeof(char), CLUSTER_SIZE, fatPartition);
+
+    }
+
+}
+
 /*
    Deal with the user input and decide which file system fuctio to call
 */

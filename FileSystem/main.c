@@ -507,8 +507,8 @@ void writeFile() {
     {
 
         fseek(fatPartition, foundFileToWrite->first_block, SEEK_SET);
-        fwrite(contentToWrite, sizeof(char*), strlen(contentToWrite), fatPartition);
-        foundFileToWrite->size = sizeof(contentToWrite);
+        fwrite(contentToWrite, strlen(contentToWrite)*sizeof(char), 1, fatPartition);
+        foundFileToWrite->size = strlen(contentToWrite);
 
         updateStructures();
 
@@ -570,10 +570,9 @@ void appendFile() {
 
         } else {
 
-            printf("SIZE %d\n", foundFileToWrite->size);
-            uint16_t firstEmptyAddres = foundFileToWrite->first_block + foundFileToWrite->size + 1;
+            uint16_t firstEmptyAddres = foundFileToWrite->first_block + foundFileToWrite->size;
             fseek(fatPartition, firstEmptyAddres, SEEK_SET);
-            fwrite(contentToWrite, sizeof(char), strlen(contentToWrite), fatPartition);
+            fwrite(contentToWrite, sizeof(char) * strlen(contentToWrite), 1, fatPartition);
             foundFileToWrite->size += sizeof(contentToWrite);
 
             updateStructures();

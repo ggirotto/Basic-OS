@@ -222,7 +222,6 @@ void makeDirectory() {
         {
             
             uint16_t directoryAddress = i * CLUSTER_SIZE;
-            printf("Criando essa merda em %d\n", directoryAddress);
 
             foundEmptyDirectory->first_block = directoryAddress;
             fat[i] = directoryAddress;
@@ -450,7 +449,6 @@ void makeFile() {
         {
             
             uint16_t directoryAddress = i * CLUSTER_SIZE;
-            printf("Criando essa merda em %d\n", directoryAddress);
 
             foundEmptyDirectory->first_block = directoryAddress;
             fat[i] = directoryAddress;
@@ -687,6 +685,87 @@ void appendFile() {
 
 }
 
+void readFile() {
+
+
+    // Back to root
+    fseek( fatPartition, 9*CLUSTER_SIZE, SEEK_SET );
+    fread( root, CLUSTER_SIZE, 1, fatPartition );
+
+    char directoryPath[100];
+
+    scanf("%s", directoryPath);
+
+    char *prev;
+    char *curr;
+    char *delimiter = "/";
+    uint16_t address = 9 * CLUSTER_SIZE;
+
+    prev = strtok(directoryPath, delimiter);
+
+    while((curr = strtok(NULL, delimiter)) != NULL) {
+
+        // Walk through paths
+
+        bool foundDirectory = false;
+
+        for (int i = 0; i < 32; ++i)
+        {
+            dir_entry_t file = root[i];
+
+            if (file.attributes == 0 && strcmp((char *)file.filename, prev) == 0)
+            {
+                address = file.first_block;
+                fseek( fatPartition, file.first_block, SEEK_SET );
+                fread( root, CLUSTER_SIZE, 1, fatPartition );
+                foundDirectory = true;
+            }
+
+        }
+
+        if (!foundDirectory)
+        {
+            printf("DIRECTORY NOT FOUND \n");
+            return;
+        }
+
+        prev = curr;
+
+    }
+
+    dir_entry_t *foundFileToRead = NULL;
+
+    for (int i = 0; i < 32; ++i)
+    {
+        dir_entry_t *file = &root[i];
+
+        if (file->attributes == 1 && strcmp((char *)file->filename, prev) == 0)
+        {
+            
+            foundFileToRead = file;
+            break;
+        }
+
+    }
+
+    if (foundFileToRead == NULL)
+    {
+
+        printf("Arquivo para leitura não existe\n");
+        return;
+
+    } else
+    {
+
+        fseek(fatPartition, foundFileToRead->first_block, SEEK_SET);
+        char *fileContent = malloc( sizeof(char) * CLUSTER_SIZE );
+        fread(fileContent, CLUSTER_SIZE, 1, fatPartition);
+        printf("CONTEUDO: %s\n", fileContent);
+
+    }
+
+}
+
 /*
    Deal with the user input and decide which file system fuctio to call
 */
@@ -716,6 +795,10 @@ void handleUserInput(char userInput[100]) {
     } else if (strcmp(userInput, "append") == 0) {
         
         appendFile();
+
+    } else if (strcmp(userInput, "read") == 0) {
+        
+        readFile();
 
     } else if (strcmp(userInput, "create") == 0) {
         

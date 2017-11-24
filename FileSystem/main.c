@@ -428,7 +428,12 @@ void writeFile() {
         printf("Arquivo para escrita não existe\n");
         return;
 
-    } else
+    } else if (sizeof(contentToWrite) > CLUSTER_SIZE) {
+
+        printf("Conteúdo maior que o do cluster\n");
+        return;
+
+    }
     {
 
         fseek(fatPartition, foundFileToWrite->first_block, SEEK_SET);

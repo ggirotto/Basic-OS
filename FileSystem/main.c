@@ -10,7 +10,7 @@
 
 uint16_t fat[4096]; // FAT's table 8 clusters, 4096 inputs of 16 bits (8192 bytes)
 dir_entry_t root[32];
-
+uint16_t address;
 FILE *fatPartition;
 
 void loadFileSystem() {
@@ -77,19 +77,30 @@ void initializateFileSystem() {
 
 }
 
-void listDirectories() {
 
-    // Back to root
+/*
+    This function walks through the folders between the root and the final destination.
+    Ex: mkdir /folder1/folder2/folder3
+    The function walk through folder1, folder2 and update the root array with the
+    directory where folder2 is inserted
+    Return false if some of the directories inside the path doesnt exists. Othewise, return the last attribute from the path.
+    Example: mkdir /folder1/folder2/folder3 -> return folder3 if folder1 and folder2 exists. NULL otherwise.
+*/
+char* walkThroughPath(char directoryPath[]) {
+
+    address = 9 * CLUSTER_SIZE;
+
+    // Load root directory back at 'root' array.
     fseek( fatPartition, 9*CLUSTER_SIZE, SEEK_SET );
     fread( root, CLUSTER_SIZE, 1, fatPartition );
 
-    char directoryPath[100];
-    scanf("%s", directoryPath);
-
+    char *prev;
+    char *curr;
     char *delimiter = "/";
-    char *curr = strtok(directoryPath, delimiter);
 
-    while(curr != NULL) {
+    prev = strtok(directoryPath, delimiter);
+
+    while((curr = strtok(NULL, delimiter)) != NULL) {
 
         // Walk through paths
 
@@ -99,12 +110,12 @@ void listDirectories() {
         {
             dir_entry_t file = root[i];
 
-            if (file.attributes == 0 && strcmp((char *)file.filename, curr) == 0)
+            if (file.attributes == 0 && strcmp((char *)file.filename, prev) == 0)
             {
+                address = file.first_block;
                 fseek( fatPartition, file.first_block, SEEK_SET );
                 fread( root, CLUSTER_SIZE, 1, fatPartition );
                 foundDirectory = true;
-                break;
             }
 
         }
@@ -112,12 +123,35 @@ void listDirectories() {
         if (!foundDirectory)
         {
             printf("DIRECTORY NOT FOUND \n");
-            return;
+            return NULL;
         }
 
-        curr = strtok(NULL, delimiter);
+        prev = curr;
 
     }
+
+    return prev;
+
+}
+
+/*
+    This function list all files and folders inside the given path.
+    Ex: ls /folder1/folder2
+    List all files and folders inside folder2
+    For root, type 'ls /'.
+*/
+
+void listDirectories() {
+
+    // Get users input
+    char directoryPath[100];
+    scanf("%s", directoryPath);
+
+    walkThroughPath(directoryPath);
+
+    /*
+        For each file that is not an empty file, print it's name and it's type
+    */
 
     for (int i = 0; i < 32; ++i)
     {
@@ -138,56 +172,11 @@ void listDirectories() {
 
 }
 
-void makeDirectory() {
+/*
+    Each directory has max 32 slots. If exists a free slot, this function returns a reference to the first one.
+*/
 
-
-    // Back to root
-    fseek( fatPartition, 9*CLUSTER_SIZE, SEEK_SET );
-    fread( root, CLUSTER_SIZE, 1, fatPartition );
-
-    // Read the path inputed by the user
-    char directoryPath[100];
-    scanf("%s", directoryPath);
-
-    char *prev;
-    char *curr;
-    char *delimiter = "/";
-    uint16_t address = 9 * CLUSTER_SIZE;
-
-    prev = strtok(directoryPath, delimiter);
-
-
-    while((curr = strtok(NULL, delimiter)) != NULL) {
-
-        // Walk through paths
-
-        bool foundDirectory = false;
-
-        for (int i = 0; i < 32; ++i)
-        {
-            dir_entry_t file = root[i];
-
-            if (file.attributes == 0 && strcmp((char *)file.filename, prev) == 0)
-            {
-                address = file.first_block;
-                fseek( fatPartition, file.first_block, SEEK_SET );
-                fread( root, CLUSTER_SIZE, 1, fatPartition );
-                foundDirectory = true;
-            }
-
-        }
-
-        if (!foundDirectory)
-        {
-            printf("DIRECTORY NOT FOUND \n");
-            return;
-        }
-
-        prev = curr;
-
-    }
-
-    dir_entry_t *foundEmptyDirectory = NULL;
+dir_entry_t* getFreeEntry() {
 
     for (int i = 0; i < 32; ++i)
     {
@@ -195,11 +184,117 @@ void makeDirectory() {
 
         if (file->attributes == 0 && strcmp((char *)file->filename, "") == 0)
         {
-            foundEmptyDirectory = file;
-            break;
+            return file;
         }
 
     }
+
+    return NULL;
+
+}
+
+/*
+    Find the directory with filename=name
+*/
+
+dir_entry_t* findEntryNamed(char* name) {
+
+    for (int i = 0; i < 32; ++i)
+    {
+        dir_entry_t *file = &root[i];
+
+        if (strcmp((char *)file->filename, name) == 0)
+        {
+            return file;
+        }
+
+    }
+
+    return NULL;
+
+}
+
+/*
+    Find the directory with filename=name and attributes=attribute
+*/
+
+dir_entry_t* findEntryNamedAttributed(char* name, uint8_t attribute) {
+
+    for (int i = 0; i < 32; ++i)
+    {
+        dir_entry_t *file = &root[i];
+
+        if (file->attributes == attribute && strcmp((char *)file->filename, name) == 0)
+        {
+            return file;
+        }
+
+    }
+
+    return NULL;
+
+}
+
+/*
+    This function finds the first empty address at fat and set it to an available slot at data clusters.
+    Returns the cluster free slot address where the file/folder will be saved.
+*/
+
+uint16_t getFreeAddress() {
+
+    for (int i = 0; i < 4096; ++i)
+    {
+        uint16_t address = fat[i];
+
+        if (address == 0x0000)
+        {
+            
+            uint16_t directoryAddress = i * CLUSTER_SIZE;
+            fat[i] = directoryAddress;
+            return directoryAddress;
+
+        }
+
+    }
+
+    return 0x0000;
+
+}
+
+/*
+    This function update the fat.part file with the data at 'fat' and 'root'.
+*/
+
+void updateStructures() {
+
+    fseek(fatPartition, CLUSTER_SIZE, SEEK_SET);
+    fwrite(fat, 2, 4096, fatPartition);
+
+    fseek(fatPartition, address, SEEK_SET);
+    fwrite(root, CLUSTER_SIZE, 1, fatPartition);
+
+}
+
+/*
+    This function creates a folder.
+    Ex: mkdir /folder1/folder2
+    Creates folder2 inside folder1
+*/
+
+void makeDirectory() {
+
+    // Get users input
+    char directoryPath[100];
+    scanf("%s", directoryPath);
+
+    char *prev = walkThroughPath(directoryPath);
+
+    if (prev == NULL)
+    {
+        return;
+    }
+
+    dir_entry_t *foundEmptyDirectory = getFreeEntry();
 
     if (foundEmptyDirectory == NULL)
     {
@@ -211,96 +306,93 @@ void makeDirectory() {
     {
 
         strcpy((char *)foundEmptyDirectory->filename,prev);
+        foundEmptyDirectory->first_block = getFreeAddress();
+
+        updateStructures();
 
     }
+
+}
+
+/*
+    This function checks if folder is empty
+*/
+bool checkIfFolderIsEmpty(dir_entry_t *folder) {
+
+    dir_entry_t checkRoot[32];
+    fseek( fatPartition, folder->first_block, SEEK_SET );
+    fread( checkRoot, CLUSTER_SIZE, 1, fatPartition );
+
+    for (int i = 0; i < 32; ++i)
+    {
+        dir_entry_t file = root[i];
+
+        if (!(file.attributes == 0 && strcmp((char *)file.filename, "") == 0))
+        {
+            return false;
+        }
+
+    }
+
+    return true;
+
+}
+
+void freeDirectoryAddressAtFat(dir_entry_t *directory) {
+
 
     for (int i = 0; i < 4096; ++i)
     {
         uint16_t address = fat[i];
+        uint16_t directoryAddress = i * CLUSTER_SIZE;
 
-        if (address == 0x0000)
+        if (directoryAddress == directory->first_block)
         {
-            
-            uint16_t directoryAddress = i * CLUSTER_SIZE;
-
-            foundEmptyDirectory->first_block = directoryAddress;
-            fat[i] = directoryAddress;
+            fat[i] = 0x0000;
             break;
-
         }
 
     }
-
-    fseek(fatPartition, CLUSTER_SIZE, SEEK_SET);
-    fwrite(fat, 2, 4096, fatPartition);
-
-    fseek(fatPartition, address, SEEK_SET);
-    fwrite(root, CLUSTER_SIZE, 1, fatPartition);
 
 }
 
-void deleteDirectory() {
-
-
-    // Back to root
-    fseek( fatPartition, 9*CLUSTER_SIZE, SEEK_SET );
-    fread( root, CLUSTER_SIZE, 1, fatPartition );
-
-    // Read the path inputed by the user
-    char directoryPath[100];
-    scanf("%s", directoryPath);
-
-    char *prev;
-    char *curr;
-    char *delimiter = "/";
-    uint16_t address = 9 * CLUSTER_SIZE;
-
-    prev = strtok(directoryPath, delimiter);
-
-
-    while((curr = strtok(NULL, delimiter)) != NULL) {
-
-        // Walk through paths
-
-        bool foundDirectory = false;
-
-        for (int i = 0; i < 32; ++i)
-        {
-            dir_entry_t file = root[i];
-
-            if (file.attributes == 0 && strcmp((char *)file.filename, prev) == 0)
-            {
-                address = file.first_block;
-                fseek( fatPartition, file.first_block, SEEK_SET );
-                fread( root, CLUSTER_SIZE, 1, fatPartition );
-                foundDirectory = true;
-            }
-
-        }
-
-        if (!foundDirectory)
-        {
-            printf("DIRECTORY NOT FOUND \n");
-            return;
-        }
-
-        prev = curr;
-
-    }
-
-    dir_entry_t *foundDirectoryToDelete = NULL;
+void freeDirectoryDataAtRoot(dir_entry_t *directory) {
 
     for (int i = 0; i < 32; ++i)
     {
         dir_entry_t *file = &root[i];
 
-        if (strcmp((char *)file->filename, prev) == 0)
-        {
-            foundDirectoryToDelete = file;
+        if (strcmp((char *)file->filename, (char *)directory->filename) == 0)
+        {   
+            dir_entry_t emptyDir = { 0, 0, 0, 0, 0 };
+            root[i] = emptyDir;
             break;
         }
 
     }
+
+}
+
+/*
+    This function deletes a file or folder.
+    Ex: unlink folder1/file
+    Delete file inside folder1
+    OBS: The folder must be empty to be deleted
+*/
+void deleteDirectory() {
+
+    // Get users input
+    char directoryPath[100];
+    scanf("%s", directoryPath);
+
+    char *prev = walkThroughPath(directoryPath);
+
+    if (prev == NULL)
+    {
+        return;
+    }
+
+    dir_entry_t *foundDirectoryToDelete = findEntryNamed(prev);
 
     if (foundDirectoryToDelete == NULL)
     {
@@ -311,120 +403,37 @@ void deleteDirectory() {
     } else if (foundDirectoryToDelete->attributes == 0)
     {
 
-        dir_entry_t checkRoot[32];
-        fseek( fatPartition, foundDirectoryToDelete->first_block, SEEK_SET );
-        fread( checkRoot, CLUSTER_SIZE, 1, fatPartition );
-
-        for (int i = 0; i < 32; ++i)
-        {
-            dir_entry_t file = root[i];
-
-            if (!(file.attributes == 0 && strcmp((char *)file.filename, "") == 0))
-            {
-                printf("O Diretório não está vazio. \n");
-                return;
-            }
-
-        }
-
+        checkIfFolderIsEmpty(foundDirectoryToDelete);
 
     }
 
-    for (int i = 0; i < 4096; ++i)
-    {
-        uint16_t address = fat[i];
-        uint16_t directoryAddress = i * CLUSTER_SIZE;
+    freeDirectoryAddressAtFat(foundDirectoryToDelete);
+    freeDirectoryDataAtRoot(foundDirectoryToDelete);
 
-        if (directoryAddress == foundDirectoryToDelete->first_block)
-        {
-            fat[i] = 0x0000;
-            break;
-        }
-
-    }
-
-    for (int i = 0; i < 32; ++i)
-    {
-        dir_entry_t *file = &root[i];
-
-        if (strcmp((char *)file->filename, (char *)foundDirectoryToDelete->filename) == 0)
-        {   
-            dir_entry_t emptyDir = { 0, 0, 0, 0, 0 };
-            root[i] = emptyDir;
-            break;
-        }
-
-    }
-
-    fseek(fatPartition, CLUSTER_SIZE, SEEK_SET);
-    fwrite(fat, 2, 4096, fatPartition);
-
-    fseek(fatPartition, address, SEEK_SET);
-    fwrite(root, CLUSTER_SIZE, 1, fatPartition);
+    updateStructures();
 
 }
 
+/*
+    This function creates a file
+    Ex: create folder1/file
+    Creates file at folder1
+
+*/
 void makeFile() {
 
-
-    // Back to root
-    fseek( fatPartition, 9*CLUSTER_SIZE, SEEK_SET );
-    fread( root, CLUSTER_SIZE, 1, fatPartition );
-
+    // Get users input
     char directoryPath[100];
-
     scanf("%s", directoryPath);
 
-    char *prev;
-    char *curr;
-    char *delimiter = "/";
-    uint16_t address = 9 * CLUSTER_SIZE;
+    char *prev = walkThroughPath(directoryPath);
 
-    prev = strtok(directoryPath, delimiter);
-
-    while((curr = strtok(NULL, delimiter)) != NULL) {
-
-        // Walk through paths
-
-        bool foundDirectory = false;
-
-        for (int i = 0; i < 32; ++i)
-        {
-            dir_entry_t file = root[i];
-
-            if (file.attributes == 0 && strcmp((char *)file.filename, prev) == 0)
-            {
-                address = file.first_block;
-                fseek( fatPartition, file.first_block, SEEK_SET );
-                fread( root, CLUSTER_SIZE, 1, fatPartition );
-                foundDirectory = true;
-            }
-
-        }
-
-        if (!foundDirectory)
-        {
-            printf("DIRECTORY NOT FOUND \n");
-            return;
-        }
-
-        prev = curr;
-
-    }
-
-    dir_entry_t *foundEmptyDirectory = NULL;
-
-    for (int i = 0; i < 32; ++i)
+    if (prev == NULL)
     {
-        dir_entry_t *file = &root[i];
-
-        if (file->attributes == 0 && strcmp((char *)file->filename, "") == 0)
-        {
-            foundEmptyDirectory = file;
-            break;
-        }
-
+        return;
     }
+
+    dir_entry_t *foundEmptyDirectory = getFreeEntry();
 
     if (foundEmptyDirectory == NULL)
     {
@@ -441,38 +450,18 @@ void makeFile() {
     }
 
 
-    for (int i = 0; i < 4096; ++i)
-    {
-        uint16_t address = fat[i];
+    foundEmptyDirectory->first_block = getFreeAddress();
 
-        if (address == 0x0000)
-        {
-            
-            uint16_t directoryAddress = i * CLUSTER_SIZE;
-
-            foundEmptyDirectory->first_block = directoryAddress;
-            fat[i] = directoryAddress;
-            break;
-
-        }
-
-    }
-
-    fseek(fatPartition, CLUSTER_SIZE, SEEK_SET);
-    fwrite(fat, 2, 4096, fatPartition);
-
-    fseek(fatPartition, address, SEEK_SET);
-    fwrite(root, CLUSTER_SIZE, 1, fatPartition);
+    updateStructures();
 
 }
 
-
+/*
+    This function write content to a file
+    Ex: write "something" folder1/file
+    Writes 'something' at file inside folder1
+*/
 void writeFile() {
-
-
-    // Back to root
-    fseek( fatPartition, 9*CLUSTER_SIZE, SEEK_SET );
-    fread( root, CLUSTER_SIZE, 1, fatPartition );
 
     // Insert user input at directoryPath
     char directoryPath[256];
@@ -492,58 +481,16 @@ void writeFile() {
     char *b = strrchr(directoryPath, '\"');
     memmove(a-1, b+1, strlen(b)+1);
 
-    char *prev;
-    char *curr;
-    delimiter = "/";
-    uint16_t address = 9 * CLUSTER_SIZE;
+    char *prev = walkThroughPath(directoryPath);
 
-    prev = strtok(directoryPath, delimiter);
-
-    while((curr = strtok(NULL, delimiter)) != NULL) {
-
-        // Walk through paths
-
-        bool foundDirectory = false;
-
-        for (int i = 0; i < 32; ++i)
-        {
-            dir_entry_t file = root[i];
-
-            if (file.attributes == 0 && strcmp((char *)file.filename, prev) == 0)
-            {
-                address = file.first_block;
-                fseek( fatPartition, file.first_block, SEEK_SET );
-                fread( root, CLUSTER_SIZE, 1, fatPartition );
-                foundDirectory = true;
-            }
-
-        }
-
-        if (!foundDirectory)
-        {
-            printf("DIRECTORY NOT FOUND \n");
-            return;
-        }
-
-        prev = curr;
-
+    if (prev == NULL)
+    {
+        return;
     }
 
     prev[strlen(prev)-1] = 0;
 
-    dir_entry_t *foundFileToWrite = NULL;
-
-    for (int i = 0; i < 32; ++i)
-    {
-        dir_entry_t *file = &root[i];
-        if (file->attributes == 1 && strcmp((char *)file->filename, prev) == 0)
-        {
-            
-            foundFileToWrite = file;
-            break;
-        }
-
-    }
+    dir_entry_t *foundFileToWrite = findEntryNamedAttributed(prev,1);
 
     if (foundFileToWrite == NULL)
     {
@@ -560,25 +507,22 @@ void writeFile() {
     {
 
         fseek(fatPartition, foundFileToWrite->first_block, SEEK_SET);
-        fwrite(contentToWrite, sizeof(char), strlen(contentToWrite), fatPartition);
+        fwrite(contentToWrite, sizeof(char*), strlen(contentToWrite), fatPartition);
         foundFileToWrite->size = sizeof(contentToWrite);
+
+        updateStructures();
 
     }
 
-    fseek(fatPartition, CLUSTER_SIZE, SEEK_SET);
-    fwrite(fat, 2, 4096, fatPartition);
-
-    fseek(fatPartition, address, SEEK_SET);
-    fwrite(root, CLUSTER_SIZE, 1, fatPartition);
-
 }
 
+/*
+    This function append content to a file
+    Ex: append "something" folder1/file
+    Append "something" to the content inside file
+*/
 void appendFile() {
 
-
-    // Back to root
-    fseek( fatPartition, 9*CLUSTER_SIZE, SEEK_SET );
-    fread( root, CLUSTER_SIZE, 1, fatPartition );
 
     // Insert user input at directoryPath
     char directoryPath[256];
@@ -598,59 +542,16 @@ void appendFile() {
     char *b = strrchr(directoryPath, '\"');
     memmove(a-1, b+1, strlen(b)+1);
 
-    char *prev;
-    char *curr;
-    delimiter = "/";
-    uint16_t address = 9 * CLUSTER_SIZE;
+    char *prev = walkThroughPath(directoryPath);
 
-    prev = strtok(directoryPath, delimiter);
-
-    while((curr = strtok(NULL, delimiter)) != NULL) {
-
-        // Walk through paths
-
-        bool foundDirectory = false;
-
-        for (int i = 0; i < 32; ++i)
-        {
-            dir_entry_t file = root[i];
-
-            if (file.attributes == 0 && strcmp((char *)file.filename, prev) == 0)
-            {
-                address = file.first_block;
-                fseek( fatPartition, file.first_block, SEEK_SET );
-                fread( root, CLUSTER_SIZE, 1, fatPartition );
-                foundDirectory = true;
-            }
-
-        }
-
-        if (!foundDirectory)
-        {
-            printf("DIRECTORY NOT FOUND \n");
-            return;
-        }
-
-        prev = curr;
-
+    if (prev == NULL)
+    {
+        return;
     }
 
     prev[strlen(prev)-1] = 0;
 
-    dir_entry_t *foundFileToWrite = NULL;
-
-    for (int i = 0; i < 32; ++i)
-    {
-        dir_entry_t *file = &root[i];
-
-        if (file->attributes == 1 && strcmp((char *)file->filename, prev) == 0)
-        {
-            
-            foundFileToWrite = file;
-            break;
-        }
-
-    }
+    dir_entry_t *foundFileToWrite = findEntryNamedAttributed(prev,1);
 
     if (foundFileToWrite == NULL)
     {
@@ -660,7 +561,7 @@ void appendFile() {
 
     } else {
 
-        int totalSize = sizeof(contentToWrite) + foundFileToWrite->size;
+        int totalSize = sizeof(contentToWrite) + (foundFileToWrite->size * sizeof(char));
 
         if ( totalSize > CLUSTER_SIZE ) {
 
@@ -669,84 +570,38 @@ void appendFile() {
 
         } else {
 
-            uint16_t firstEmptyAddres = foundFileToWrite->first_block + foundFileToWrite->size;
+            printf("SIZE %d\n", foundFileToWrite->size);
+            uint16_t firstEmptyAddres = foundFileToWrite->first_block + foundFileToWrite->size + 1;
             fseek(fatPartition, firstEmptyAddres, SEEK_SET);
             fwrite(contentToWrite, sizeof(char), strlen(contentToWrite), fatPartition);
             foundFileToWrite->size += sizeof(contentToWrite);
 
+            updateStructures();
         }
     }
-
-    fseek(fatPartition, CLUSTER_SIZE, SEEK_SET);
-    fwrite(fat, 2, 4096, fatPartition);
-
-    fseek(fatPartition, address, SEEK_SET);
-    fwrite(root, CLUSTER_SIZE, 1, fatPartition);
 
 }
 
+/*
+    This function read the content from a file
+    Ex: read folder1/file
+    Read the content inside file
+*/
+
 void readFile() {
 
-
-    // Back to root
-    fseek( fatPartition, 9*CLUSTER_SIZE, SEEK_SET );
-    fread( root, CLUSTER_SIZE, 1, fatPartition );
-
+    // Get users input
     char directoryPath[100];
-
     scanf("%s", directoryPath);
 
-    char *prev;
-    char *curr;
-    char *delimiter = "/";
-    uint16_t address = 9 * CLUSTER_SIZE;
+    char *prev = walkThroughPath(directoryPath);
 
-    prev = strtok(directoryPath, delimiter);
-
-    while((curr = strtok(NULL, delimiter)) != NULL) {
-
-        // Walk through paths
-
-        bool foundDirectory = false;
-
-        for (int i = 0; i < 32; ++i)
-        {
-            dir_entry_t file = root[i];
-
-            if (file.attributes == 0 && strcmp((char *)file.filename, prev) == 0)
-            {
-                address = file.first_block;
-                fseek( fatPartition, file.first_block, SEEK_SET );
-                fread( root, CLUSTER_SIZE, 1, fatPartition );
-                foundDirectory = true;
-            }
-
-        }
-
-        if (!foundDirectory)
-        {
-            printf("DIRECTORY NOT FOUND \n");
-            return;
-        }
-
-        prev = curr;
-
-    }
-
-    dir_entry_t *foundFileToRead = NULL;
-
-    for (int i = 0; i < 32; ++i)
+    if (prev == NULL)
     {
-        dir_entry_t *file = &root[i];
-
-        if (file->attributes == 1 && strcmp((char *)file->filename, prev) == 0)
-        {
-            
-            foundFileToRead = file;
-            break;
-        }
-
+        return;
     }
+
+    dir_entry_t *foundFileToRead = findEntryNamedAttributed(prev,1);
 
     if (foundFileToRead == NULL)
     {
@@ -767,7 +622,7 @@ void readFile() {
 }
 
 /*
-   Deal with the user input and decide which file system fuctio to call
+   Deal with the user input and decide which file system function to call
 */
 void handleUserInput(char userInput[100]) {
 

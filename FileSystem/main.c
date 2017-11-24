@@ -595,9 +595,17 @@ void handleUserInput(char userInput[100]) {
         
         listDirectories();
 
+    } else if (strcmp(userInput, "quit") == 0) {
+        
+        exit(0);
+
+    } else if (strcmp(userInput, "clear") == 0) {
+        
+        system("clear");
+
     } else {
         
-        printf("Invalid Command");
+        printf("Invalid Command\n");
 
     }
 

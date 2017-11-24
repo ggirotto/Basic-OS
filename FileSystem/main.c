@@ -442,6 +442,14 @@ void writeFile() {
 
     }
 
+    fseek(fatPartition, CLUSTER_SIZE, SEEK_SET);
+    fwrite(fat, 2, 4096, fatPartition);
+
+    fseek(fatPartition, address, SEEK_SET);
+    fwrite(root, CLUSTER_SIZE, 1, fatPartition);
+
+}
+
 }
 
 /*

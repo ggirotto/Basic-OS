@@ -240,6 +240,131 @@ void makeDirectory() {
 
 }
 
+void deleteDirectory() {
+
+
+    // Back to root
+    fseek( fatPartition, 9*CLUSTER_SIZE, SEEK_SET );
+    fread( root, CLUSTER_SIZE, 1, fatPartition );
+
+    // Read the path inputed by the user
+    char directoryPath[100];
+    scanf("%s", directoryPath);
+
+    char *prev;
+    char *curr;
+    char *delimiter = "/";
+    uint16_t address = 9 * CLUSTER_SIZE;
+
+    prev = strtok(directoryPath, delimiter);
+
+
+    while((curr = strtok(NULL, delimiter)) != NULL) {
+
+        // Walk through paths
+
+        bool foundDirectory = false;
+
+        for (int i = 0; i < 32; ++i)
+        {
+            dir_entry_t file = root[i];
+
+            if (file.attributes == 0 && strcmp((char *)file.filename, prev) == 0)
+            {
+                address = file.first_block;
+                fseek( fatPartition, file.first_block, SEEK_SET );
+                fread( root, CLUSTER_SIZE, 1, fatPartition );
+                foundDirectory = true;
+            }
+
+        }
+
+        if (!foundDirectory)
+        {
+            printf("DIRECTORY NOT FOUND \n");
+            return;
+        }
+
+        prev = curr;
+
+    }
+
+    dir_entry_t *foundDirectoryToDelete = NULL;
+
+    for (int i = 0; i < 32; ++i)
+    {
+        dir_entry_t *file = &root[i];
+
+        if (strcmp((char *)file->filename, prev) == 0)
+        {
+            foundDirectoryToDelete = file;
+            break;
+        }
+
+    }
+
+    if (foundDirectoryToDelete == NULL)
+    {
+
+        printf("Diretório/Pasta não encontrado\n");
+        return;
+
+    } else if (foundDirectoryToDelete->attributes == 0)
+    {
+
+        dir_entry_t checkRoot[32];
+        fseek( fatPartition, foundDirectoryToDelete->first_block, SEEK_SET );
+        fread( checkRoot, CLUSTER_SIZE, 1, fatPartition );
+
+        for (int i = 0; i < 32; ++i)
+        {
+            dir_entry_t file = root[i];
+
+            if (!(file.attributes == 0 && strcmp((char *)file.filename, "") == 0))
+            {
+                printf("O Diretório não está vazio. \n");
+                return;
+            }
+
+        }
+
+
+    }
+
+    for (int i = 0; i < 4096; ++i)
+    {
+        uint16_t address = fat[i];
+        uint16_t directoryAddress = i * CLUSTER_SIZE;
+
+        if (directoryAddress == foundDirectoryToDelete->first_block)
+        {
+            fat[i] = 0x0000;
+            break;
+        }
+
+    }
+
+    for (int i = 0; i < 32; ++i)
+    {
+        dir_entry_t *file = &root[i];
+
+        if (strcmp((char *)file->filename, (char *)foundDirectoryToDelete->filename) == 0)
+        {   
+            dir_entry_t emptyDir = { 0, 0, 0, 0, 0 };
+            root[i] = emptyDir;
+            break;
+        }
+
+    }
+
+    fseek(fatPartition, CLUSTER_SIZE, SEEK_SET);
+    fwrite(fat, 2, 4096, fatPartition);
+
+    fseek(fatPartition, address, SEEK_SET);
+    fwrite(root, CLUSTER_SIZE, 1, fatPartition);
+
+}
+
 void makeFile() {
 
 
@@ -578,6 +703,11 @@ void handleUserInput(char userInput[100]) {
     } else if (strcmp(userInput, "mkdir") == 0) {
         
         makeDirectory();
+
+    }
+     else if (strcmp(userInput, "unlink") == 0) {
+        
+        deleteDirectory();
 
     } else if (strcmp(userInput, "write") == 0) {
         

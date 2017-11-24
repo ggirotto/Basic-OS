@@ -99,7 +99,7 @@ void listDirectories() {
         {
             dir_entry_t file = root[i];
 
-            if (file.attributes == 0 && strcmp(file.filename, curr) == 0)
+            if (file.attributes == 0 && strcmp((char *)file.filename, curr) == 0)
             {
                 fseek( fatPartition, file.first_block, SEEK_SET );
                 fread( root, CLUSTER_SIZE, 1, fatPartition );
@@ -123,7 +123,7 @@ void listDirectories() {
     {
         dir_entry_t *file = &root[i];
 
-        if (file->attributes != 0 || strcmp(file->filename, "") != 0)
+        if (file->attributes != 0 || strcmp((char *)file->filename, "") != 0)
         {
             if (file->attributes == 0)
             {
@@ -167,7 +167,7 @@ void makeDirectory() {
         {
             dir_entry_t file = root[i];
 
-            if (file.attributes == 0 && strcmp(file.filename, prev) == 0)
+            if (file.attributes == 0 && strcmp((char *)file.filename, prev) == 0)
             {
                 address = file.first_block;
                 fseek( fatPartition, file.first_block, SEEK_SET );
@@ -193,7 +193,7 @@ void makeDirectory() {
     {
         dir_entry_t *file = &root[i];
 
-        if (file->attributes == 0 && strcmp(file->filename, "") == 0)
+        if (file->attributes == 0 && strcmp((char *)file->filename, "") == 0)
         {
             foundEmptyDirectory = file;
             break;
@@ -210,13 +210,13 @@ void makeDirectory() {
     } else
     {
 
-        strcpy(foundEmptyDirectory->filename,prev);
+        strcpy((char *)foundEmptyDirectory->filename,prev);
 
     }
 
     for (int i = 0; i < 4096; ++i)
     {
-        uint16_t *address = fat[i];
+        uint16_t address = fat[i];
 
         if (address == 0x0000)
         {
@@ -268,7 +268,7 @@ void makeFile() {
         {
             dir_entry_t file = root[i];
 
-            if (file.attributes == 0 && strcmp(file.filename, prev) == 0)
+            if (file.attributes == 0 && strcmp((char *)file.filename, prev) == 0)
             {
                 address = file.first_block;
                 fseek( fatPartition, file.first_block, SEEK_SET );
@@ -294,7 +294,7 @@ void makeFile() {
     {
         dir_entry_t *file = &root[i];
 
-        if (file->attributes == 0 && strcmp(file->filename, "") == 0)
+        if (file->attributes == 0 && strcmp((char *)file->filename, "") == 0)
         {
             foundEmptyDirectory = file;
             break;
@@ -311,7 +311,7 @@ void makeFile() {
     } else
     {
 
-        strcpy(foundEmptyDirectory->filename,prev);
+        strcpy((char *)foundEmptyDirectory->filename,prev);
         foundEmptyDirectory->attributes = 1;
 
     }
@@ -319,7 +319,7 @@ void makeFile() {
 
     for (int i = 0; i < 4096; ++i)
     {
-        uint16_t *address = fat[i];
+        uint16_t address = fat[i];
 
         if (address == 0x0000)
         {

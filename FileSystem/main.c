@@ -432,7 +432,7 @@ void writeFile() {
     {
 
         fseek(fatPartition, foundFileToWrite->first_block, SEEK_SET);
-        fwrite(contentToWrite, sizeof(char), CLUSTER_SIZE, fatPartition);
+        fwrite(contentToWrite, sizeof(char), strlen(contentToWrite), fatPartition);
 
     }
 

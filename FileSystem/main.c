@@ -438,6 +438,7 @@ void writeFile() {
 
         fseek(fatPartition, foundFileToWrite->first_block, SEEK_SET);
         fwrite(contentToWrite, sizeof(char), strlen(contentToWrite), fatPartition);
+        foundFileToWrite->size = sizeof(contentToWrite);
 
     }
 

@@ -1,6 +1,8 @@
 #ifndef FILESYSTEM_DIR_ENTRY_H
 #define FILESYSTEM_DIR_ENTRY_H
 
+#include <stdint.h>
+
 /* Directory input, 32 bytes each */
 typedef struct {
     uint8_t filename[18];

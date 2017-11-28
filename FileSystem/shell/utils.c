@@ -133,12 +133,15 @@ dir_entry_t* findEntryNamed(char* name, dir_entry_t* root) {
     This function checks if folder is empty
 */
 bool checkIfFolderIsEmpty(dir_entry_t *folder, FILE* fatPartition, dir_entry_t* root) {
+    
     dir_entry_t checkRoot[32];
+    
     fseek(fatPartition, folder->first_block, SEEK_SET);
+    
     fread(checkRoot, CLUSTER_SIZE, 1, fatPartition);
 
     for (int i = 0; i < 32; ++i) {
-        dir_entry_t file = root[i];
+        dir_entry_t file = checkRoot[i];
 
         if (!(file.attributes == 0 && strcmp((char *)file.filename, "") == 0)) {
             return false;

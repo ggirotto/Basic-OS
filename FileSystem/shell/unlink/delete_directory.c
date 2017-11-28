@@ -26,11 +26,36 @@ void deleteDirectory(FILE* fatPartition, dir_entry_t* root, uint16_t* fat, uint1
         printf("Diretório/Pasta não encontrado\n");
         return;
     } else if (foundDirectoryToDelete->attributes == 0) {
-        checkIfFolderIsEmpty(foundDirectoryToDelete, fatPartition, root);
+        
+        if (checkIfFolderIsEmpty(foundDirectoryToDelete)) {
+
+            char dataClusterInitialization = 0x0000;
+            fseek(fatPartition, foundDirectoryToDelete->first_block, SEEK_SET);
+        
+            fwrite(&dataClusterInitialization, foundDirectoryToDelete->size*sizeof(char), 1, fatPartition);
+
+            freeDirectoryAddressAtFat(foundDirectoryToDelete);
+            freeDirectoryDataAtRoot(foundDirectoryToDelete);
+
+            updateStructures();
+
+        } else {
+
+            printf("PASTA NAO VAIZA\n");
+
+        }
+
+    } else {
+
+            char dataClusterInitialization = 0x0000;
+            fseek(fatPartition, foundDirectoryToDelete->first_block, SEEK_SET);
+        
+            fwrite(&dataClusterInitialization, foundDirectoryToDelete->size*sizeof(char), 1, fatPartition);
+
+            freeDirectoryAddressAtFat(foundDirectoryToDelete);
+            freeDirectoryDataAtRoot(foundDirectoryToDelete);
+
+            updateStructures();
+
     }
-
-    freeDirectoryAddressAtFat(foundDirectoryToDelete, fat);
-    freeDirectoryDataAtRoot(foundDirectoryToDelete, root);
-
-    updateStructures(fatPartition, root, fat, address);
 }

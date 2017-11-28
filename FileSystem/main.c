@@ -143,15 +143,45 @@ char* walkThroughPath(char directoryPath[]) {
 
 void listDirectories() {
 
-    // Get users input
+    // Back to root
+    fseek( fatPartition, 9*CLUSTER_SIZE, SEEK_SET );
+    fread( root, CLUSTER_SIZE, 1, fatPartition );
+
     char directoryPath[100];
     scanf("%s", directoryPath);
 
-    walkThroughPath(directoryPath);
+    char *delimiter = "/";
+    char *curr = strtok(directoryPath, delimiter);
 
-    /*
-        For each file that is not an empty file, print it's name and it's type
-    */
+    while(curr != NULL) {
+
+        // Walk through paths
+
+        bool foundDirectory = false;
+
+        for (int i = 0; i < 32; ++i)
+        {
+            dir_entry_t file = root[i];
+
+            if (file.attributes == 0 && strcmp((char *)file.filename, curr) == 0)
+            {
+                fseek( fatPartition, file.first_block, SEEK_SET );
+                fread( root, CLUSTER_SIZE, 1, fatPartition );
+                foundDirectory = true;
+                break;
+            }
+
+        }
+
+        if (!foundDirectory)
+        {
+            printf("DIRECTORY NOT FOUND \n");
+            return;
+        }
+
+        curr = strtok(NULL, delimiter);
+
+    }
 
     for (int i = 0; i < 32; ++i)
     {
@@ -407,6 +437,11 @@ void deleteDirectory() {
 
     }
 
+    char dataClusterInitialization = 0x0000;
+    fseek(fatPartition, foundDirectoryToDelete->first_block, SEEK_SET);
+    
+    fwrite(&dataClusterInitialization, foundDirectoryToDelete->size*sizeof(char), 1, fatPartition);
+
     freeDirectoryAddressAtFat(foundDirectoryToDelete);
     freeDirectoryDataAtRoot(foundDirectoryToDelete);
 
@@ -503,7 +538,7 @@ void writeFile() {
         printf("Conteúdo maior que o do cluster\n");
         return;
 
-    }
+    } else 
     {
 
         fseek(fatPartition, foundFileToWrite->first_block, SEEK_SET);
